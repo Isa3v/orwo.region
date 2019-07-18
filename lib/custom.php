@@ -16,7 +16,6 @@ class Custom extends \Orwo\Region\Init
         return $pattern;
     }
 
-
     /**
      * [regionEvent - массив сгенерированных регионов, перед отправкой в кеш или вывод]
      * @return [array]
