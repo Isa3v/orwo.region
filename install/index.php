@@ -35,6 +35,7 @@ class orwo_region extends CModule
         ModuleManager::registerModule($this->MODULE_ID);
         // Устанавливаем опции модуля
         Option::set($this->MODULE_ID, "regionIblockID", $iblockInstall['regionIblockID']);
+        $this->IblockStyle($iblockInstall['regionIblockID']);
         $eventManager = \Bitrix\Main\EventManager::getInstance();
         // Инициализация поддоменов
         $eventManager->registerEventHandler("main", "OnBeforeProlog", $this->MODULE_ID, "\Orwo\Region\Init", "initRegions");
@@ -96,7 +97,7 @@ class orwo_region extends CModule
                 if ($iblockID = $rsIBlock->Add($arFields)) {
                     // Прописываем свойства
                     $city = array(
-                      "SORT" => 10,
+                      "SORT" => 5,
                       "NAME" => 'Город {city}',
                       "CODE" => "city",
                       "ACTIVE" => "Y",
@@ -116,7 +117,7 @@ class orwo_region extends CModule
                       "IBLOCK_ID" => $iblockID,
                     );
                     $to_city = array(
-                      "SORT" => 10,
+                      "SORT" => 15,
                       "NAME" => 'в Город {to_city}',
                       "CODE" => "to_city",
                       "ACTIVE" => "Y",
@@ -126,7 +127,7 @@ class orwo_region extends CModule
                       "IBLOCK_ID" => $iblockID,
                     );
                     $by_city = array(
-                      "SORT" => 10,
+                      "SORT" => 20,
                       "NAME" => 'по Городу {by_city}',
                       "CODE" => "by_city",
                       "ACTIVE" => "Y",
@@ -148,5 +149,40 @@ class orwo_region extends CModule
                 }
             }
         }
+    }
+
+    /**
+     * [IblockStyle перемещаем свойства в инфоблоке + сериалиазция от битрикс]
+     */
+    public function IblockStyle($IBLOCK_ID)
+    {
+        // Вкладки и свойства
+        $arFormSettings = array(
+          array(
+                array("edit1", "Настройка региона"), // Название вкладки
+                array("NAME", "*Домен (Алиас)"), // Свойство со звездочкой - помечается как обязательное
+                array("ACTIVE", "Активность"),
+                array("SORT", "Сортировка"),
+                array("empty", "Настройка плейсходеров"),
+          ),
+        );
+
+        // Закидываем свойства
+        $rsProperty = CIBlockProperty::GetList(['sort' => 'asc'], ['IBLOCK_ID' => $IBLOCK_ID]);
+        while ($prop = $rsProperty->Fetch()) {
+            $arFormSettings[0][] = array('PROPERTY_'.$prop['ID'], $prop['NAME']);
+        }
+        // Сериализация
+        $arFormFields = array();
+        foreach ($arFormSettings as $key => $arFormFields) {
+            $arFormItems = array();
+            foreach ($arFormFields as $strFormItem) {
+                $arFormItems[] = implode('--#--', $strFormItem);
+            }
+            $arStrFields[] = implode('--,--', $arFormItems);
+        }
+        $arSettings = array("tabs" => implode('--;--', $arStrFields));
+        // Применяем настройки для всех пользователей для данного инфоблока
+        $rez = CUserOptions::SetOption("form", "form_element_".$IBLOCK_ID, $arSettings, $bCommon=true, $userId=false);
     }
 }
