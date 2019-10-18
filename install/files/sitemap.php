@@ -1,8 +1,7 @@
 <?php
 // Служебная часть битрикса
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/prolog_before.php");
-use Bitrix\Main\Loader;
-Loader::includeModule("orwo_region");
+\Bitrix\Main\Loader::includeModule("orwo.region");
 if(class_exists('\Orwo\Region\Init')){
   // Ищем в этой дериктории robots.txt и преобразовываем
   \Orwo\Region\Init::sitemapRegion(__DIR__ . "/sitemap.xml");
