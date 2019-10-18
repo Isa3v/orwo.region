@@ -1,5 +1,6 @@
 <?php
 namespace Orwo\Region;
+
 /**
 * @author ORWO: Isa3v
 * [OrRegions description]
@@ -20,36 +21,48 @@ namespace Orwo\Region;
 */
 class Init
 {
-    // Массив с регионами (Задается при вызове)
-    public function regionIblockID()
-    {
-        return \Bitrix\Main\Config\Option::get("orwo.region", "regionIblockID");
-    }
-
-    public static function initRegions()
+    protected function initRegions()
     {
         $arRegions = [];
-        if (\CModule::IncludeModule("iblock")) {
-            // Что бы получить все свойства нужны ID и IBLOCK_ID
-            $arSelect = array("ID", "IBLOCK_ID", "SORT", "NAME","PROPERTY_*");
-            // Получаем из инфоблока ID 5 элементы
-            $arFilter = array("IBLOCK_ID"=>IntVal(self::regionIblockID()), "ACTIVE_DATE"=>"Y", "ACTIVE"=>"Y");
-            $res = \CIBlockElement::GetList(array("SORT"=>"ASC"), $arFilter, false, array(), $arSelect);
-            while ($ob = $res->GetNextElement()) {
-                $arFields = $ob->GetFields();
-                // Добавляем ключ региона по названию элемента
-                $arRegions[$arFields['NAME']] = [];
-                $arRegions[$arFields['NAME']]['ID'] = $arFields['ID'];
-                foreach ($ob->GetProperties() as $key => $prop) {
-                  if($prop['PROPERTY_TYPE'] == 'S'){
-                    // Свойства типа "строка" делаем плейсхолдерами
-                      if (!is_array($prop['VALUE']) && (!is_object($prop['VALUE']) || method_exists($prop['VALUE'], '__toString'))){
-                          $arRegions[$arFields['NAME']][$key] = $prop['VALUE'];
-                      }
-                    }
-                }
-            }
-            $arRegions = \Orwo\Region\Custom::regionEvent($arRegions);
+        $entityPropsSingle = \Bitrix\Main\Entity\Base::compileEntity(
+            'OrwoRegionPropertiesClass',
+            [
+                    'IBLOCK_ELEMENT_ID'  => ['data_type' => 'integer'],
+                    'IBLOCK_PROPERTY_ID' => ['data_type' => 'integer'],
+                    'VALUE' => ['data_type' => 'string'],
+            ],
+            ['table_name'   =>   'b_iblock_element_property']
+        );
+        $resItem = \Bitrix\Iblock\ElementTable::getList([
+            'select' => [
+                'NAME',
+                'ID',
+                'PROP_CODE' => 'Properties.CODE',
+                'PROP_VALUE' => 'PropValue.VALUE',
+                'Properties.ID',
+                'PropValue.IBLOCK_PROPERTY_ID',
+            ],
+            'filter' =>['=IBLOCK_ID' => \Bitrix\Main\Config\Option::get("orwo.region", "regionIblockID")],
+            'group' => ['NAME'],
+            'runtime' => [
+                    // Данные о свойстве
+                    new \Bitrix\Main\Entity\ReferenceField(
+                        'Properties',
+                        \Bitrix\Iblock\PropertyTable::class,
+                        ['=this.IBLOCK_ID' => 'ref.IBLOCK_ID'],
+                    ),
+                    // Значение свойств
+                    new \Bitrix\Main\Entity\ReferenceField(
+                        'PropValue',
+                        $entityPropsSingle->getDataClass(),
+                        ['=this.ID' => 'ref.IBLOCK_ELEMENT_ID', '=this.Properties.ID' => 'ref.IBLOCK_PROPERTY_ID'],
+                    )
+                ]
+        ]);
+        while ($arItem = $resItem->fetch()) {
+            $prop = $arItem['PROP_CODE'];
+            $arRegions[$arItem['NAME']]['ID'] = $arItem['ID'];
+            $arRegions[$arItem['NAME']][$prop] = $arItem['PROP_VALUE'];
         }
         return $arRegions;
     }
@@ -170,7 +183,6 @@ class Init
             }
             // Дополнительная обработка и добавление кастомных паттернов
             // По умолчанию возвращает тот же массив
-            $pattern = \Orwo\Region\Custom::patternEvent($pattern);
             if (!is_array($str) && (!is_object($str) || method_exists($str, '__toString'))) {
                 // Заменяем в строке наши плейсхолдеры
                 return strtr($str, $pattern);
